@@ -10,9 +10,9 @@ namespace ReadWriteLock
         {
             for (int i = 0; i < 1000000; i++)
             {
-                readWriteLock.WriteLock();
+                readWriteLock.ReadLock();
                 N++;
-                readWriteLock.WriteUnlock();
+                readWriteLock.ReadUnlock();
             }
         }
         public static void Add(Mutex mutex)
@@ -44,7 +44,7 @@ namespace ReadWriteLock
         {
             readWriteLock.WriteLock();
             Console.WriteLine(Thread.CurrentThread.Name + " : 开始写");
-            Thread.Sleep(500);
+            Thread.Sleep(100);
             Console.WriteLine(Thread.CurrentThread.Name + " : 写结束");
             readWriteLock.WriteUnlock();
         }
@@ -53,7 +53,7 @@ namespace ReadWriteLock
             readWriteLock.ReadLock();
             Console.WriteLine(Thread.CurrentThread.Name + " : 开始读");
             Thread.Sleep(100);
-            Console.WriteLine(Thread.CurrentThread.Name + " : 开始读");
+            Console.WriteLine(Thread.CurrentThread.Name + " : 读结束");
             readWriteLock.ReadUnlock();
         }
         public static void Main(string[] args)
@@ -62,29 +62,28 @@ namespace ReadWriteLock
             ReadWriteLock readWriteLock = new ReadWriteLock();
             Mutex mutex = new Mutex();
             ManualResetEvent manual = new ManualResetEvent(true);
-            //ArraySegment<Thread> array = new ArraySegment<Thread>();
-            //for (int i = 0; i < 10; i++)
-            //{
-            //    Thread thread = new Thread(() => TestWriter(readWriteLock));
-            //    thread.Name = "WriteThread-" + i;
-            //    thread.Start();
-            //}
-            //for (int i = 0; i < 50; i++)
-            //{
-            //    Thread thread = new Thread(() => TestReader(readWriteLock));
-            //    thread.Name = "ReadThread-" + i;
-            //    thread.Start();
-            //}
-            Thread thread1 = new Thread(() => Add(readWriteLock));
-            Thread thread2 = new Thread(() => Add(readWriteLock));
-            thread1.Name = "thread1";
-            thread2.Name = "thread2";
-            thread1.Start();
-            thread2.Start();
-            thread1.Join();
-            thread2.Join();
-            Console.WriteLine(N);
-            Console.WriteLine(DateTime.Now - start);
+            for (int i = 0; i < 10; i++)
+            {
+                Thread thread = new Thread(() => TestWriter(readWriteLock));
+                thread.Name = "WriteThread-" + i;
+                thread.Start();
+            }
+            for (int i = 0; i < 10; i++)
+            {
+                Thread thread = new Thread(() => TestReader(readWriteLock));
+                thread.Name = "ReadThread-" + i;
+                thread.Start();
+            }
+            //Thread thread1 = new Thread(() => Add(readWriteLock));
+            //Thread thread2 = new Thread(() => Add(readWriteLock));
+            //thread1.Name = "thread1";
+            //thread2.Name = "thread2";
+            //thread1.Start();
+            //thread2.Start();
+            //thread1.Join();
+            //thread2.Join();
+            //Console.WriteLine(N);
+            //Console.WriteLine(DateTime.Now - start);
             Console.ReadKey();
         }
     }

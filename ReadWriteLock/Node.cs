@@ -5,17 +5,17 @@ namespace ReadWriteLock
 {
     public class Node
     {
-        public static ManualResetEvent ManualResetEvent = new ManualResetEvent(false);
         // 读节点
         public static readonly Node SHARED = new Node();
         // 写节点
         public static readonly Node EXCLUSIVE = null;
         // 读链长度阈值
-        public static int Threshold = 100;
+        public static int Threshold = 5;
 
         public static readonly int CANCELLED = 1;
         public static readonly int RUNNING = -1;
         public static readonly int WAITING = -2;
+        public static readonly int SIGNAL = -3;
 
         public int waitStatus;
         // 前驱节点
@@ -24,7 +24,6 @@ namespace ReadWriteLock
         public Node next;
         // 持有线程
         public Thread thread;
-        public ManualResetEvent manualResetEvent = ManualResetEvent;
 
         //以下参数仅对读节点适用
         // 读链头

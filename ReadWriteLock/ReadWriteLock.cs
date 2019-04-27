@@ -46,6 +46,7 @@ namespace ReadWriteLock
                     reentrants = 1;
                     head.next = node;
                     node.prev = head;
+                    Monitor.Enter(this);
                 }
                 else
                 {
@@ -61,7 +62,10 @@ namespace ReadWriteLock
                         node.prev = t;
                         tail = node;
                         node.waitStatus = Node.WAITING;
-                        node.manualResetEvent.Reset();
+                        while (node.prev != head && node.waitStatus != Node.SIGNAL)
+                        {
+                        }
+                        Monitor.Enter(this);
                     }
                 }
             }
@@ -85,6 +89,7 @@ namespace ReadWriteLock
                     if (reentrants == 0)
                     {
                         node.waitStatus = Node.CANCELLED;
+                        Monitor.Exit(this);
                         AwakeNext();
                     }
                 }
@@ -109,8 +114,9 @@ namespace ReadWriteLock
                 node.prev = head;
                 while(node != null)
                 {
-                    node.manualResetEvent.Set();
+                    node.waitStatus = Node.SIGNAL;
                     node = node.nextReader;
+                    node.prev = head;
                 }
             }
         }
@@ -157,14 +163,14 @@ namespace ReadWriteLock
                                 if (node.isShared() && node.readerCount <= Node.Threshold)
                                 {
                                     AddReader(node, reader);
-                                    reader.manualResetEvent.Reset();
+                                    while (reader.prev != head && reader.waitStatus != Node.SIGNAL) { }
                                     return;
                                 }
+                                node = node.next;
                             }
                             tail.next = reader;
                             reader.prev = tail;
                             tail = reader;
-                            reader.manualResetEvent.Reset();
                         }
                         
                     }
@@ -178,6 +184,7 @@ namespace ReadWriteLock
             {
                 reader = reader.nextReader;
             }
+            node.prev = reader.prev;
             reader.nextReader = node;
             node.readerHead = readerHead;
             readerHead.readerCount++;

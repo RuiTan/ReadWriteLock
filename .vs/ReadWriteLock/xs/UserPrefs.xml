@@ -1,0 +1,27 @@
+﻿<Properties StartupConfiguration="{4A60FD9E-714A-4254-B1CB-38A403A7801B}|Default">
+  <MonoDevelop.Ide.ItemProperties.ReadWriteLock PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="ReadWriteLock/Node.cs">
+    <Files>
+      <File FileName="ReadWriteLock/Program.cs" Line="57" Column="40" />
+      <File FileName="ReadWriteLock/ReadWriteLock.cs" Line="138" Column="36" />
+      <File FileName="ReadWriteLock/Node.cs" Line="40" Column="10" />
+    </Files>
+    <Pads>
+      <Pad Id="ProjectPad">
+        <State name="__root__">
+          <Node name="ReadWriteLock" expanded="True">
+            <Node name="ReadWriteLock" expanded="True">
+              <Node name="Node.cs" selected="True" />
+            </Node>
+          </Node>
+        </State>
+      </Pad>
+    </Pads>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MultiItemStartupConfigurations />
+</Properties>
