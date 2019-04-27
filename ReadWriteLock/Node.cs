@@ -5,11 +5,13 @@ namespace ReadWriteLock
 {
     public class Node
     {
+        public static ManualResetEvent ManualResetEvent = new ManualResetEvent(false);
         // 读节点
         public static readonly Node SHARED = new Node();
         // 写节点
         public static readonly Node EXCLUSIVE = null;
-        public static int Threshold = 10;
+        // 读链长度阈值
+        public static int Threshold = 100;
 
         public static readonly int CANCELLED = 1;
         public static readonly int RUNNING = -1;
@@ -22,18 +24,15 @@ namespace ReadWriteLock
         public Node next;
         // 持有线程
         public Thread thread;
+        public ManualResetEvent manualResetEvent = ManualResetEvent;
 
         //以下参数仅对读节点适用
         // 读链头
         public Node readerHead;
-        // 读链尾
-        public Node readerTail;
         // 后继读节点
         public Node nextReader;
-        // 前驱读节点
-        public Node prevReader;
-        // 当前节点在读链中的位置
-        public int index;
+        // 读链长度
+        public int readerCount = 0;
 
         // 节点类型
         public Node mode;

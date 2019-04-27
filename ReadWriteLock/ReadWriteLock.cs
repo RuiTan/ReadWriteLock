@@ -30,49 +30,65 @@ namespace ReadWriteLock
 
         public void WriteLock()
         {
-            if (head == null)
-            {
-                Interlocked.Exchange(ref head, new Node());
-                Node node = new Node(Thread.CurrentThread, Node.EXCLUSIVE);
-                Interlocked.Exchange(ref node.waitStatus, Node.RUNNING);
-                Interlocked.Exchange(ref tail, node);
-                Interlocked.Exchange(ref reentrants, 0);
-                Interlocked.Exchange(ref head.next, node);
-                Interlocked.Exchange(ref node.prev, head);
-            }
-            else
+            lock (this)
             {
                 Thread current = Thread.CurrentThread;
-                if (owner == current)
+                if (head == null)
                 {
-                    Node node = head.next;
-                    Interlocked.Increment(ref reentrants);
+                    head = new Node();
+                }
+                if (tail == null)
+                {
+                    Node node = new Node(current, Node.EXCLUSIVE);
+                    node.waitStatus = Node.RUNNING;
+                    tail = node;
+                    owner = current;
+                    reentrants = 1;
+                    head.next = node;
+                    node.prev = head;
                 }
                 else
                 {
-                    Node t = tail;
-                    Node node = new Node(current, Node.EXCLUSIVE);
-                    Interlocked.Exchange(ref t.next, node);
-                    Interlocked.Exchange(ref node.prev, t);
-                    Interlocked.Exchange(ref tail, node);
-                    Interlocked.Exchange(ref node.waitStatus, Node.WAITING);
-                    current.Suspend();
+                    if (owner == current)
+                    {
+                        reentrants++;
+                    }
+                    else
+                    {
+                        Node t = tail;
+                        Node node = new Node(current, Node.EXCLUSIVE);
+                        t.next = node;
+                        node.prev = t;
+                        tail = node;
+                        node.waitStatus = Node.WAITING;
+                        node.manualResetEvent.Reset();
+                    }
                 }
             }
-
         }
 
         public void WriteUnlock()
         {
-            Node node = head.next;
-            while (node != null && node.waitStatus == Node.CANCELLED)
+            lock (this)
             {
-                Interlocked.Exchange(ref head.next, node);
-                Interlocked.Exchange(ref node.prev, head);
-                node = node.next;
+                reentrants--;
+                Node node = head.next;
+                while (node != null && node.waitStatus == Node.CANCELLED)
+                { 
+                    node = node.next;
+                    head.next = node;
+                    if (node != null)
+                        node.prev = head;
+                }
+                if (node != null)
+                {
+                    if (reentrants == 0)
+                    {
+                        node.waitStatus = Node.CANCELLED;
+                        AwakeNext();
+                    }
+                }
             }
-            Interlocked.Exchange(ref node.waitStatus, Node.CANCELLED);
-            AwakeNext();
         }
 
         public void AwakeNext()
@@ -82,55 +98,118 @@ namespace ReadWriteLock
             {
                 node = node.next;
             }
-            Interlocked.Exchange(ref head.next, node);
+            head.next = node;
             if (node == null)
             {
                 tail = null;
                 return;
             }
             else
-                Interlocked.Exchange(ref node.prev, head);
-            node.thread.Resume();
+            {
+                node.prev = head;
+                while(node != null)
+                {
+                    node.manualResetEvent.Set();
+                    node = node.nextReader;
+                }
+            }
         }
-
         public void ReadLock()
         {
-
+            lock (this)
+            {
+                Thread current = Thread.CurrentThread;
+                if (head == null)
+                {
+                    head = new Node();
+                }
+                if (head.next == null)
+                {
+                    Node node = new Node(current, Node.SHARED);
+                    node.waitStatus = Node.RUNNING;
+                    tail = node;
+                    owner = current;
+                    reentrants = 1;
+                    head.next = node;
+                    node.prev = head;
+                    node.readerHead = node;
+                }
+                else
+                {
+                    if (owner == current)
+                    {
+                        reentrants++;
+                    }
+                    else
+                    {
+                        Node node = head.next;
+                        Node reader = new Node(current, Node.SHARED);
+                        if (node.isShared() && node.readerCount <= Node.Threshold)
+                        {
+                            AddReader(node, reader);
+                        }
+                        else
+                        {
+                            for (; ; )
+                            {
+                                if (node == null)
+                                    break;
+                                if (node.isShared() && node.readerCount <= Node.Threshold)
+                                {
+                                    AddReader(node, reader);
+                                    reader.manualResetEvent.Reset();
+                                    return;
+                                }
+                            }
+                            tail.next = reader;
+                            reader.prev = tail;
+                            tail = reader;
+                            reader.manualResetEvent.Reset();
+                        }
+                        
+                    }
+                }
+            }
         }
-
+        public void AddReader(Node readerHead, Node node)
+        {
+            Node reader = readerHead;
+            while (reader.nextReader != null)
+            {
+                reader = reader.nextReader;
+            }
+            reader.nextReader = node;
+            node.readerHead = readerHead;
+            readerHead.readerCount++;
+        }
         public void ReadUnlock()
         {
-
-        }
-
-        protected bool compareAndSetState(int expect, int update)
-        {
-            return expect == Interlocked.Exchange(ref expect, update);
-        }
-
-        protected bool compareAndSetTail(Node expect, Node update)
-        {
-            return expect == Interlocked.Exchange(ref expect, update);
-        }
-
-        protected bool compareAndSetHead(Node node)
-        {
-            return head == Interlocked.Exchange(ref head, node);
-        }
-
-        protected bool compareAndSetStatus(Node node, int update)
-        {
-            return node.waitStatus == Interlocked.Exchange(ref node.waitStatus, update);
-        }
-
-        protected bool compareAndSetNext(Node node, Node update)
-        {
-            return node.next == Interlocked.Exchange(ref node.next, update);
-        }
-
-        protected bool compareAndAddCount(HoldCounter holdCounter)
-        {
-            return holdCounter.Count == Interlocked.Increment(ref holdCounter.Count);
+            lock (this)
+            {
+                reentrants--;
+                Node node = head.next;
+                while (node != null && node.waitStatus == Node.CANCELLED)
+                {
+                    node = node.next;
+                    head.next = node;
+                    if (node != null)
+                        node.prev = head;
+                }
+                if (node != null)
+                {
+                    if (reentrants == 0)
+                    {
+                        node.waitStatus = Node.CANCELLED;
+                        node.readerHead.readerCount--;
+                        if (node.readerHead.readerCount == 0)
+                        {
+                            if (node.readerHead.waitStatus != Node.CANCELLED)
+                                throw new Exception("操作冲突，读数量为0时仍然有在读");
+                            AwakeNext();
+                        }
+                    }
+                }
+            }
         }
     }
 }
