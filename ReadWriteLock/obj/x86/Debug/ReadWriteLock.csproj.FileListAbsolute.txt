@@ -1,0 +1,6 @@
+/Users/tanrui/Projects/ReadWriteLock/ReadWriteLock/obj/x86/Debug/ReadWriteLock.csprojAssemblyReference.cache
+/Users/tanrui/Projects/ReadWriteLock/ReadWriteLock/obj/x86/Debug/ReadWriteLock.csproj.CoreCompileInputs.cache
+/Users/tanrui/Projects/ReadWriteLock/ReadWriteLock/bin/Debug/ReadWriteLock.exe
+/Users/tanrui/Projects/ReadWriteLock/ReadWriteLock/bin/Debug/ReadWriteLock.pdb
+/Users/tanrui/Projects/ReadWriteLock/ReadWriteLock/obj/x86/Debug/ReadWriteLock.exe
+/Users/tanrui/Projects/ReadWriteLock/ReadWriteLock/obj/x86/Debug/ReadWriteLock.pdb
