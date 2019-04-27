@@ -47,6 +47,7 @@ namespace ReadWriteLock
                     head.next = node;
                     node.prev = head;
                     Monitor.Enter(this);
+                    //Console.WriteLine(Thread.CurrentThread.Name + " : 获取写锁成功");
                 }
                 else
                 {
@@ -66,6 +67,7 @@ namespace ReadWriteLock
                         {
                         }
                         Monitor.Enter(this);
+                        //Console.WriteLine(Thread.CurrentThread.Name + " : 获取写锁成功");
                     }
                 }
             }
@@ -90,6 +92,7 @@ namespace ReadWriteLock
                     {
                         node.waitStatus = Node.CANCELLED;
                         Monitor.Exit(this);
+                        //Console.WriteLine(Thread.CurrentThread.Name + " : 释放写锁成功");
                         AwakeNext();
                     }
                 }
