@@ -15,7 +15,7 @@ namespace ReadWriteLock
         static int N = 0;
         public static void Add(ReadWriteLock readWriteLock)
         {
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 10000000; i++)
             {
                 readWriteLock.WriteLock();
                 number.AddNum();
@@ -50,46 +50,45 @@ namespace ReadWriteLock
         public static void TestWriter(ReadWriteLock readWriteLock)
         {
             readWriteLock.WriteLock();
-            Thread.Sleep(10000);
+            Thread.Sleep(1000);
             readWriteLock.WriteUnlock();
         }
         public static void TestReader(ReadWriteLock readWriteLock)
         {
             readWriteLock.ReadLock();
-            Thread.Sleep(10000);
+            Thread.Sleep(1000);
             readWriteLock.ReadUnlock();
         }
         public static void Main(string[] args)
         {
-            var start = DateTime.Now;
-            ReadWriteLock readWriteLock = new ReadWriteLock();
-            Mutex mutex = new Mutex();
-            ManualResetEvent manual = new ManualResetEvent(false);
+            //ReadWriteLock readWriteLock = new ReadWriteLock();
+            //for (int i = 0; i < 10; i++)
+            //    CreateThread(false, i, readWriteLock);
+            //for (int i = 0; i < 100; i++)
+            //{
+            //    Thread.Sleep(500);
+            //    readWriteLock.PrintQueue();
+            //}
 
-            CreateThread(false, 1, readWriteLock);
-            CreateThread(true, 1, readWriteLock);
-            CreateThread(false, 2, readWriteLock);
-            CreateThread(true, 1, readWriteLock);
-            CreateThread(true, 2, readWriteLock);
-            CreateThread(true, 3, readWriteLock);
-            CreateThread(true, 4, readWriteLock);
-            CreateThread(false, 3, readWriteLock);
-            Thread.Sleep(500);
-            readWriteLock.PrintQueue();
-
-
-            //Thread thread1 = new Thread(() => Add(readWriteLock));
-            //Thread thread2 = new Thread(() => Add(readWriteLock));
-            //thread1.Name = "thread1";
-            //thread2.Name = "thread2";
-            //thread1.Start();
-            //thread2.Start();
-            //thread1.Join();
-            //thread2.Join();
-            //Console.WriteLine(number.GetNum());
-            //Console.WriteLine(DateTime.Now - start);
+            TestLock();
 
             Console.ReadKey();
+        }
+
+        static void TestLock()
+        {
+            var start = DateTime.Now;
+            ReadWriteLock readWriteLock = new ReadWriteLock();
+            Thread thread1 = new Thread(() => Add(readWriteLock));
+            Thread thread2 = new Thread(() => Add(readWriteLock));
+            thread1.Name = "thread1";
+            thread2.Name = "thread2";
+            thread1.Start();
+            thread2.Start();
+            thread1.Join();
+            thread2.Join();
+            Console.WriteLine(number.GetNum());
+            Console.WriteLine(DateTime.Now - start);
         }
 
         static void Print()
@@ -114,7 +113,6 @@ namespace ReadWriteLock
                 thread.Name = "Writer-" + i;
             }
             thread.Start();
-            readWriteLock.PrintQueue();
         }
     }
 }
