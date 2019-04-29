@@ -5,13 +5,20 @@ namespace ReadWriteLock
 {
     class MainClass
     {
+        class Number
+        {
+            private int num = 0;
+            public int GetNum() { return num; }
+            public void AddNum() { num++; }
+        }
+        static Number number = new Number();
         static int N = 0;
         public static void Add(ReadWriteLock readWriteLock)
         {
-            for (int i = 0; i < 100000000; i++)
+            for (int i = 0; i < 100; i++)
             {
                 readWriteLock.WriteLock();
-                N++;
+                number.AddNum();
                 readWriteLock.WriteUnlock();
             }
         }
@@ -43,13 +50,13 @@ namespace ReadWriteLock
         public static void TestWriter(ReadWriteLock readWriteLock)
         {
             readWriteLock.WriteLock();
-            Thread.Sleep(1000);
+            Thread.Sleep(10000);
             readWriteLock.WriteUnlock();
         }
         public static void TestReader(ReadWriteLock readWriteLock)
         {
             readWriteLock.ReadLock();
-            Thread.Sleep(1000);
+            Thread.Sleep(10000);
             readWriteLock.ReadUnlock();
         }
         public static void Main(string[] args)
@@ -57,42 +64,57 @@ namespace ReadWriteLock
             var start = DateTime.Now;
             ReadWriteLock readWriteLock = new ReadWriteLock();
             Mutex mutex = new Mutex();
-            ManualResetEvent manual = new ManualResetEvent(true);
-            //for (int i = 0; i < 10; i++)
-            //{
-            //    Thread thread = new Thread(() => TestWriter(readWriteLock));
-            //    thread.Name = "WriteThread-" + i;
-            //    thread.Start();
-            //}
-            //for (int i = 0; i < 10; i++)
-            //{
-            //    Thread thread = new Thread(() => TestReader(readWriteLock));
-            //    thread.Name = "ReadThread-" + i;
-            //    thread.Start();
-            //}
-            //for (int i = 10; i < 20; i++)
-            //{
-            //    Thread thread = new Thread(() => TestWriter(readWriteLock));
-            //    thread.Name = "WriteThread-" + i;
-            //    thread.Start();
-            //}
-            //for (int i = 10; i < 20; i++)
-            //{
-            //    Thread thread = new Thread(() => TestReader(readWriteLock));
-            //    thread.Name = "ReadThread-" + i;
-            //    thread.Start();
-            //}
-            Thread thread1 = new Thread(() => Add(readWriteLock));
-            Thread thread2 = new Thread(() => Add(readWriteLock));
-            thread1.Name = "thread1";
-            thread2.Name = "thread2";
-            thread1.Start();
-            thread2.Start();
-            thread1.Join();
-            thread2.Join();
-            Console.WriteLine(N);
-            Console.WriteLine(DateTime.Now - start);
+            ManualResetEvent manual = new ManualResetEvent(false);
+
+            CreateThread(false, 1, readWriteLock);
+            CreateThread(true, 1, readWriteLock);
+            CreateThread(false, 2, readWriteLock);
+            CreateThread(true, 1, readWriteLock);
+            CreateThread(true, 2, readWriteLock);
+            CreateThread(true, 3, readWriteLock);
+            CreateThread(true, 4, readWriteLock);
+            CreateThread(false, 3, readWriteLock);
+            Thread.Sleep(500);
+            readWriteLock.PrintQueue();
+
+
+            //Thread thread1 = new Thread(() => Add(readWriteLock));
+            //Thread thread2 = new Thread(() => Add(readWriteLock));
+            //thread1.Name = "thread1";
+            //thread2.Name = "thread2";
+            //thread1.Start();
+            //thread2.Start();
+            //thread1.Join();
+            //thread2.Join();
+            //Console.WriteLine(number.GetNum());
+            //Console.WriteLine(DateTime.Now - start);
+
             Console.ReadKey();
+        }
+
+        static void Print()
+        {
+            for (; ; )
+            {
+                Thread.Sleep(1000);
+                Console.WriteLine(Thread.CurrentThread + " : write line");
+            }
+        }
+        static void CreateThread(bool share, int i, ReadWriteLock readWriteLock)
+        {
+            Thread thread;
+            if (share) 
+            {
+                thread = new Thread(() => TestReader(readWriteLock));
+                thread.Name = "Reader-" + i;            
+            }
+            else
+            {
+                thread = new Thread(() => TestWriter(readWriteLock));
+                thread.Name = "Writer-" + i;
+            }
+            thread.Start();
+            readWriteLock.PrintQueue();
         }
     }
 }
