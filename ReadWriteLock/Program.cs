@@ -15,7 +15,7 @@ namespace ReadWriteLock
         static int N = 0;
         public static void Add(ReadWriteLock readWriteLock)
         {
-            for (int i = 0; i < 10000000; i++)
+            for (int i = 0; i < 100000000; i++)
             {
                 readWriteLock.WriteLock();
                 number.AddNum();
@@ -47,10 +47,25 @@ namespace ReadWriteLock
                 N++;
             }
         }
+        public static void TestReentrantWriter(ReadWriteLock readWriteLock)
+        {
+            readWriteLock.WriteLock();
+            readWriteLock.WriteLock();
+            Thread.Sleep(500);
+            readWriteLock.WriteLock();
+            readWriteLock.WriteLock();
+            Thread.Sleep(1000);
+            readWriteLock.WriteUnlock();
+            readWriteLock.WriteUnlock();
+            Thread.Sleep(500);
+            readWriteLock.WriteUnlock();
+            readWriteLock.WriteUnlock();
+        }
         public static void TestWriter(ReadWriteLock readWriteLock)
         {
             readWriteLock.WriteLock();
             Thread.Sleep(1000);
+            Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
             readWriteLock.WriteUnlock();
         }
         public static void TestReader(ReadWriteLock readWriteLock)
@@ -61,16 +76,18 @@ namespace ReadWriteLock
         }
         public static void Main(string[] args)
         {
-            //ReadWriteLock readWriteLock = new ReadWriteLock();
-            //for (int i = 0; i < 10; i++)
-            //    CreateThread(false, i, readWriteLock);
-            //for (int i = 0; i < 100; i++)
-            //{
-            //    Thread.Sleep(500);
-            //    readWriteLock.PrintQueue();
-            //}
+            ReadWriteLock readWriteLock = new ReadWriteLock();
+            for (int i = 3; i <= 9; i++)
+                CreateThread(false, i, readWriteLock);
+            for (int i = 3; i <= 9; i++)
+                CreateThread(true, i, readWriteLock);
+            for (int i = 0; i < 100; i++)
+            {
+                Thread.Sleep(500);
+                readWriteLock.PrintQueue();
+            }
 
-            TestLock();
+            //TestLock();
 
             Console.ReadKey();
         }
@@ -109,7 +126,7 @@ namespace ReadWriteLock
             }
             else
             {
-                thread = new Thread(() => TestWriter(readWriteLock));
+                thread = i == 5 ? new Thread(() => TestReentrantWriter(readWriteLock)) : new Thread(() => TestWriter(readWriteLock));
                 thread.Name = "Writer-" + i;
             }
             thread.Start();

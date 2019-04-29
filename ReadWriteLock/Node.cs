@@ -17,6 +17,21 @@ namespace ReadWriteLock
         public static readonly int WAITING = -2;
         public static readonly int SIGNAL = -3;
 
+        public static string GetStatus(int status)
+        {
+            switch (status)
+            {
+                case 1:
+                    return "CANCELLED";
+                case -1:
+                    return "RUNNING";
+                case -2:
+                    return "WAITING";
+                case -3:
+                    return "SIGNAL";
+            }
+            return "DEFAULT";
+        }
         public int waitStatus;
         // 前驱节点
         public Node prev;

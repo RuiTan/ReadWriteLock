@@ -46,7 +46,7 @@ namespace ReadWriteLock
                     {
                         while (reader != null)
                         {
-                            Console.Write("->【线程名称：{0}，类型：读，状态：{1}】", reader.thread.Name,reader.waitStatus);
+                            Console.Write("->【线程名称：{0}，类型：读，状态：{1}】", reader.thread.Name, Node.GetStatus(reader.waitStatus));
                             reader = reader.nextReader;
                         }
                         Console.WriteLine();
@@ -54,7 +54,7 @@ namespace ReadWriteLock
                     }
                     else
                     {
-                        Console.WriteLine("->【线程名称：{0}，类型：写，状态：{1}】", node.thread.Name, node.waitStatus);
+                        Console.WriteLine("->【线程名称：{0}，类型：写，状态：{1}】", node.thread.Name, Node.GetStatus(node.waitStatus));
                     }
                     node = node.next;
                 }
@@ -98,7 +98,7 @@ namespace ReadWriteLock
                     // 如果当前线程就是持有线程，说明锁在重入，重入量加1
                     if (owner == Thread.CurrentThread)
                     {
-                        reentrants++;
+                        reentrants += 1;
                         return;
                     }
                     // 否则，当前线程需要进入等待队列进行等待
@@ -122,7 +122,8 @@ namespace ReadWriteLock
                 }
                 // 当前节点可以被唤醒，此时让锁进入
                 //Monitor.Enter(this);
-                reentrants += 1;
+                reentrants = 1;
+                owner = Thread.CurrentThread;
             }
         }
         private Node Enq()
@@ -164,7 +165,7 @@ namespace ReadWriteLock
             lock (this)
             {
                 // 当前锁持有者重入量直接-1
-                reentrants--;
+                reentrants -= 1;
                 // 获取队列头（除了head之外的头）
                 Node node = GetHolderNode();
                 // 如果后续节点为空，则释放完成，队列已空；若后续节点不为空，则可能需要唤醒后续节点
