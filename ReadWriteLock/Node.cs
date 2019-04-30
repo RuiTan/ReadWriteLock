@@ -12,6 +12,7 @@ namespace ReadWriteLock
         // 读链长度阈值
         public static int Threshold = 3;
 
+        // 节点状态
         public static readonly int CANCELLED = 1;
         public static readonly int RUNNING = -1;
         public static readonly int WAITING = -2;
@@ -55,17 +56,6 @@ namespace ReadWriteLock
         {
             return mode == SHARED;
         }
-
-        // 当前节点前驱
-        public Node predecessor()
-        {
-            Node p = prev;
-            if (p == null)
-                throw new NullReferenceException();
-            else
-                return p;
-        }
-
         public Node()
         {
         }
@@ -74,13 +64,6 @@ namespace ReadWriteLock
         public Node(Thread thread, Node mode)
         {
             this.mode = mode;
-            this.thread = thread;
-        }
-
-        // 创建特定等待类型的节点
-        public Node(Thread thread, int waitStatus)
-        {
-            this.waitStatus = waitStatus;
             this.thread = thread;
         }
     }

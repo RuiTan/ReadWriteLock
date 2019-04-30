@@ -42,22 +42,20 @@ namespace ReadWriteLock
         }
         public static void Add()
         {
-            for (; ; )
+            for (int i = 0; i < 100000000; i++)
             {
-                N++;
+                number.AddNum();
             }
         }
         public static void TestReentrantWriter(ReadWriteLock readWriteLock)
         {
             readWriteLock.WriteLock();
             readWriteLock.WriteLock();
-            Thread.Sleep(500);
             readWriteLock.WriteLock();
             readWriteLock.WriteLock();
             Thread.Sleep(1000);
             readWriteLock.WriteUnlock();
             readWriteLock.WriteUnlock();
-            Thread.Sleep(500);
             readWriteLock.WriteUnlock();
             readWriteLock.WriteUnlock();
         }
@@ -77,22 +75,33 @@ namespace ReadWriteLock
         }
         public static void Main(string[] args)
         {
-            ReadWriteLock readWriteLock = new ReadWriteLock();
-            //for (int i = 1; i <= 9; i++)
-                //CreateThread(false, i, readWriteLock);
-            for (int i = 3; i <= 9; i++)
-                CreateThread(true, i, readWriteLock);
-            for (int i = 0; i < 100; i++)
-            {
-                Thread.Sleep(500);
-                readWriteLock.PrintQueue();
-            }
-
-            //TestLock();
-
+            //ReadWriteLock readWriteLock = new ReadWriteLock();
+            //for (int i = 1; i <= 3; i++)
+            //    CreateThread(false, i, readWriteLock);
+            //for (int i = 1; i <= 7; i++)
+            //    CreateThread(true, i, readWriteLock);
+            //for (int i = 0; i < 100; i++)
+            //{
+            //    Thread.Sleep(500);
+            //    readWriteLock.PrintQueue();
+            //}
+            TestAdd();
             Console.ReadKey();
         }
-
+        static void TestAdd()
+        {
+            var start = DateTime.Now;
+            Thread thread1 = new Thread(Add);
+            Thread thread2 = new Thread(Add);
+            thread1.Name = "thread1";
+            thread2.Name = "thread2";
+            thread1.Start();
+            thread2.Start();
+            thread1.Join();
+            thread2.Join();
+            Console.WriteLine(number.GetNum());
+            Console.WriteLine(DateTime.Now - start);
+        }
         static void TestLock()
         {
             var start = DateTime.Now;
