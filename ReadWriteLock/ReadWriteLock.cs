@@ -74,63 +74,51 @@ namespace ReadWriteLock
                     head = new Node();
                 }
             }
-            bool locked = false;
             // 如果尾节点为空，说明当前队列为空，此时线程直接入队列设置为RUNNING状态
             lock (this)
             {
                 if (tail == null)
                 {
-                    EnqWhenTailNull();
-                    locked = true;
+                    EnqWhenTailNull(Node.EXCLUSIVE);
+                    return;
                     //Console.WriteLine(Thread.CurrentThread.Name + " : 获取写锁成功");
                 }
             }
-            if (locked)
+            lock (this)
             {
-                // 标识当前线程获取了锁，后续线程只能等待
-                //Monitor.Enter(this);
-                return;
-            }
-            else
-            {
-                lock (this)
+                // 如果当前线程就是持有线程，说明锁在重入，重入量加1
+                if (owner == Thread.CurrentThread)
                 {
-                    // 如果当前线程就是持有线程，说明锁在重入，重入量加1
-                    if (owner == Thread.CurrentThread)
+                    reentrants += 1;
+                    return;
+                }
+                // 否则，当前线程需要进入等待队列进行等待
+                else
+                {
+                    // 获取尾节点
+                    Node t = tail;
+                    if (t == null)
                     {
-                        reentrants += 1;
+                        EnqWhenTailNull(Node.EXCLUSIVE);
                         return;
                     }
-                    // 否则，当前线程需要进入等待队列进行等待
                     else
-                    {
-                        // 获取尾节点
-                        Node t = tail;
-                        if (t == null)
-                        {
-                            EnqWhenTailNull();
-                            return;
-                        }
-                        else
-                            currentNode = Enq();
-                        //Console.WriteLine(Thread.CurrentThread.Name + " : 获取写锁成功");
-                    }
+                        currentNode = Enq(Node.EXCLUSIVE);
+                    //Console.WriteLine(Thread.CurrentThread.Name + " : 获取写锁成功");
                 }
-                // 循环检测当前节点是否可以被唤醒
-                while (currentNode.waitStatus != Node.SIGNAL)
-                {
-                }
-                // 当前节点可以被唤醒，此时让锁进入
-                //Monitor.Enter(this);
-                reentrants = 1;
-                owner = Thread.CurrentThread;
             }
+            // 循环检测当前节点是否可以被唤醒
+            while (currentNode.waitStatus != Node.SIGNAL)
+            {
+            }
+            reentrants = 1;
+            owner = Thread.CurrentThread;
         }
-        private Node Enq()
+        private Node Enq(Node mode)
         {
             Node t = tail; 
             // 以当前线程创建独占节点
-            Node node = new Node(Thread.CurrentThread, Node.EXCLUSIVE);
+            Node node = new Node(Thread.CurrentThread, mode);
             // 连接尾节点与当前节点
             t.next = node;
             node.prev = t;
@@ -140,10 +128,10 @@ namespace ReadWriteLock
             node.waitStatus = Node.WAITING;
             return node;
         }
-        private void EnqWhenTailNull()
+        private void EnqWhenTailNull(Node mode)
         {
             // 以当前线程创建独占节点
-            Node node = new Node(Thread.CurrentThread, Node.EXCLUSIVE);
+            Node node = new Node(Thread.CurrentThread, mode);
             // 设置等待类型为RUNNING
             node.waitStatus = Node.RUNNING;
             // 当前节点加入队列，尾节点为当前节点
@@ -155,12 +143,13 @@ namespace ReadWriteLock
             // 连接头节点与此节点
             head.next = node;
             node.prev = head;
+            if (mode == Node.SHARED)
+                node.readerHead = node;
         }
 
         // 释放写锁
         public void WriteUnlock()
         {
-            bool exited = false;
             // 加锁是为了同步修改队列信息
             lock (this)
             {
@@ -178,15 +167,8 @@ namespace ReadWriteLock
                         node.waitStatus = Node.CANCELLED;
                         // 唤醒后继有效节点
                         AwakeNext();
-                        exited = true;
                     }
                 }
-            }
-            if (exited)
-            {
-                // 释放当前锁 
-                //Monitor.Exit(this);
-                //Console.WriteLine(Thread.CurrentThread.Name + " : 释放写锁成功");
             }
         }
 
@@ -198,6 +180,7 @@ namespace ReadWriteLock
             {
                 tail = null;
                 owner = null;
+                reentrants = 0;
                 return;
             }
             // 否则需要唤醒此有效节点
@@ -205,6 +188,7 @@ namespace ReadWriteLock
             {
                 // 连接到头节点
                 node.prev = head;
+                reentrants = node.readerCount;
                 // 对于读节点来说，需唤醒读链中的所有节点；对于写节点来说，无读链，只会唤醒当前节点
                 while (node != null)
                 {
@@ -217,6 +201,7 @@ namespace ReadWriteLock
                         node.prev = head;
                 }
             }
+
         }
         // 删除无效节点（可能由于主动中断或者其他因素导致的线程失效），获取第一个有效节点或空节点
         public Node GetHolderNode()
@@ -249,70 +234,102 @@ namespace ReadWriteLock
             {
                 if (tail == null)
                 {
-                    Node node = new Node(current, Node.SHARED);
-                    node.waitStatus = Node.RUNNING;
-                    tail = node;
-                    owner = current;
-                    reentrants = 1;
-                    head.next = node;
-                    node.prev = head;
-                    // 当前节点设置为读链的链头
-                    node.readerHead = node;
+                    EnqWhenTailNull(Node.SHARED);
                     return;
                 }
             }
+            Node currentNode = null;
             lock(this)
             {
-                // 添加重入量
-                if (owner == current)
+                // 获取当前持有锁节点
+                Node node = head.next;
+                if (node == null)
                 {
-                    reentrants++;
+                    EnqWhenTailNull(Node.SHARED);
                     return;
                 }
+                //// 添加重入量
+                //if (node.readerHead != null && owner == node.readerHead.thread)
+                //{
+                //    reentrants += 1;
+                //    return;
+                //}
                 else
                 {
-                    // 获取当前持有锁节点
-                    Node node = head.next;
-                    // 创建当前持有当前线程的读节点
-                    reader = new Node(current, Node.SHARED);
-                    // 获取第一个读节点
-                    while (node != null && (!node.isShared() || node.waitStatus == Node.CANCELLED))
+                    bool exclusive = false;
+                    Node excluNode = head.next;
+                    while (excluNode != null)
                     {
-                        node = node.next;
-                    }
-                    // 未找到读节点，说明队列中只有写节点，此时直接添加到队列尾
-                    if (node == null)
-                    {
-                        AddReaderNode(reader);
-                        return;
-                    }
-                    // 否则说明找到了有效的读节点，此时此读节点为队列中第一个读节点，只需要判断此读节点链长是否达到了阈值，
-                    //若未超过阈值，直接添加到读链中，并判断当前读链头是否正在读，则可以直接读，否则需要循环检测；
-                    //若超过了阈值，则添加到队列尾，并需要循环等待。
-                    else
-                    {
-                        // 未超过阈值
-                        if (node.readerCount < Node.Threshold)
+                        if (excluNode.mode == Node.EXCLUSIVE)
                         {
-                            // 添加到读链中
-                            AddReader(node, reader);
-                            // 是否需要循环等待
-                            if (node.waitStatus == Node.RUNNING)
-                                return;
-                            while (reader.prev != head && reader.waitStatus != Node.SIGNAL) { }
+                            exclusive = true;
+                            break;
                         }
-                        // 超过了阈值
+                        excluNode = excluNode.next;
+                    }
+                    if (exclusive)
+                    {
+                        // 创建当前持有当前线程的读节点
+                        reader = new Node(current, Node.SHARED);
+                        // 获取第一个读节点
+                        while (node != null && (!node.isShared() || node.waitStatus == Node.CANCELLED))
+                        {
+                            node = node.next;
+                        }
+                        // 未找到读节点，说明队列中只有写节点，此时直接添加到队列尾
+                        if (node == null)
+                        {
+                            currentNode = Enq(Node.SHARED);
+                        }
+                        // 否则说明找到了有效的读节点，此时此读节点为队列中第一个读节点，只需要判断此读节点链长是否达到了阈值，
+                        //若未超过阈值，直接添加到读链中，并判断当前读链头是否正在读，则可以直接读，否则需要循环检测；
+                        //若超过了阈值，则添加到队列尾，并需要循环等待。
                         else
                         {
-                            AddReaderNode(reader);
-                            return;
+                            // 未超过阈值
+                            if (node.readerCount < Node.Threshold)
+                            {
+                                // 添加到读链中
+                                currentNode = AddReader(node, reader);
+                                // 是否需要循环等待
+                                if (node.waitStatus == Node.RUNNING)
+                                {
+                                    reader.waitStatus = Node.RUNNING;
+                                    return;
+                                }
+                            }
+                            // 超过了阈值
+                            else
+                            {
+                                currentNode = Enq(Node.SHARED);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (tail.readerCount < Node.Threshold)
+                        {
+                            currentNode = AddReader(tail, reader);
+                            // 是否需要循环等待
+                            if (node.waitStatus == Node.RUNNING)
+                            {
+                                reader.waitStatus = Node.RUNNING;
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            currentNode = Enq(Node.SHARED);
                         }
                     }
                 }
             }
+            while(currentNode.waitStatus != Node.SIGNAL) { }
+            reentrants = currentNode.readerCount;
+            owner = currentNode.readerHead == null ? null : currentNode.readerHead.thread;
         }
         // 添加读者到指定读链头所在的读链中
-        public void AddReader(Node readerHead, Node node)
+        public Node AddReader(Node readerHead, Node node)
         {
             // 获取到读链尾
             Node reader = readerHead;
@@ -325,20 +342,11 @@ namespace ReadWriteLock
             // 连接到读链尾
             reader.nextReader = node;
             node.readerHead = readerHead;
+            node.waitStatus = readerHead.waitStatus;
             // 读链头记录的读链长度+1
             readerHead.readerCount++;
-        }
-        // 添加读者到队列尾中
-        public void AddReaderNode(Node reader)
-        {
-            // 添加到队列尾，设置为等待状态
-            tail.next = reader;
-            reader.prev = tail;
-            tail = reader;
-            reader.waitStatus = Node.WAITING;
-            // 循环检测当前节点是否可以唤醒
-            while (reader.prev != head && reader.waitStatus == Node.SIGNAL) { }
-            // 若当前节点可以被唤醒，则跳出循环即可，读无需加锁
+            reentrants++;
+            return node;
         }
         // 释放读锁
         public void ReadUnlock()
@@ -346,7 +354,7 @@ namespace ReadWriteLock
             lock (this)
             {
                 // 读重入量-1
-                reentrants--;
+                reentrants -= 1;
                 // 获取到锁持有节点
                 Node node = head.next;
                 while (node != null && node.waitStatus == Node.CANCELLED)
@@ -359,17 +367,18 @@ namespace ReadWriteLock
                 // 获取到有效读节点了
                 if (node != null)
                 {
+                    // 当前节点置为取消，读链长度-1
+                    node.waitStatus = Node.CANCELLED;
                     // 重入量为0，需要判断读链是否已全部读完成
                     if (reentrants == 0)
                     {
-                        node.readerHead.readerCount--;
-                        // 读链长度为0，说明已全部完成，则唤醒后续节点
-                        if (node.readerHead.readerCount == 0)
-                        {
-                            AwakeNext();
-                        }
-                        // 当前节点置为取消，读链长度-1
-                        node.waitStatus = Node.CANCELLED;
+                        //node.readerHead.readerCount--;
+                        //// 读链长度为0，说明已全部完成，则唤醒后续节点
+                        //if (node.readerHead.readerCount == 0)
+                        //{
+                        //    AwakeNext();
+                        //}
+                        AwakeNext();
                     }
                 }
             }

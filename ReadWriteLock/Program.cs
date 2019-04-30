@@ -72,13 +72,14 @@ namespace ReadWriteLock
         {
             readWriteLock.ReadLock();
             Thread.Sleep(1000);
+            Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
             readWriteLock.ReadUnlock();
         }
         public static void Main(string[] args)
         {
             ReadWriteLock readWriteLock = new ReadWriteLock();
-            for (int i = 3; i <= 9; i++)
-                CreateThread(false, i, readWriteLock);
+            //for (int i = 1; i <= 9; i++)
+                //CreateThread(false, i, readWriteLock);
             for (int i = 3; i <= 9; i++)
                 CreateThread(true, i, readWriteLock);
             for (int i = 0; i < 100; i++)
