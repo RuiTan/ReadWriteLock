@@ -18,7 +18,7 @@ namespace ReadWriteLock
             for (int i = 0; i < 100000000; i++)
             {
                 readWriteLock.WriteLock();
-                number.AddNum();
+                N++;
                 readWriteLock.WriteUnlock();
             }
         }
@@ -62,30 +62,29 @@ namespace ReadWriteLock
         public static void TestWriter(ReadWriteLock readWriteLock)
         {
             readWriteLock.WriteLock();
-            Thread.Sleep(1000);
-            Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
+            Thread.Sleep(500);
+            //Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
             readWriteLock.WriteUnlock();
         }
         public static void TestReader(ReadWriteLock readWriteLock)
         {
             readWriteLock.ReadLock();
-            Thread.Sleep(1000);
-            Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
+            Thread.Sleep(500);
+            //Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
             readWriteLock.ReadUnlock();
         }
         public static void Main(string[] args)
         {
-            //ReadWriteLock readWriteLock = new ReadWriteLock();
-            //for (int i = 1; i <= 3; i++)
-            //    CreateThread(false, i, readWriteLock);
-            //for (int i = 1; i <= 7; i++)
-            //    CreateThread(true, i, readWriteLock);
-            //for (int i = 0; i < 100; i++)
-            //{
-            //    Thread.Sleep(500);
-            //    readWriteLock.PrintQueue();
-            //}
-            TestAdd();
+            ReadWriteLock readWriteLock = new ReadWriteLock();
+            for (int i = 1; i <= 10; i++)
+                CreateThread(false, i, readWriteLock);
+            for (int i = 1; i <= 20; i++)
+                CreateThread(true, i, readWriteLock);
+            for (int i = 0; i < 100; i++)
+            {
+                Thread.Sleep(500);
+                readWriteLock.PrintQueue();
+            }
             Console.ReadKey();
         }
         static void TestAdd()

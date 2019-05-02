@@ -1,4 +1,5 @@
 # ReadWriteLock
+
 使用C#实现的`可重入`、`非公平`的`读写锁`，主要目的实现**并发读写**以及**读写同步**问题。为了**减少读等待时间**以及**防止出现写饥饿现象**，本锁使用了**非同步锁**的实现，允许**读优先（提高效率）**的同时**使用一个阈值限定读者的最大数量（防止写饥饿）**；重入机制允许某个线程可以获取锁多次（如多次函数调用导致的锁重入），每次获取都需要有对应的释放，否则会出错。
 
 本锁的目的是实现对读写线程队列的调度，而不是对线程获取锁的顺序进行调度。要注意读写线程进入队列的顺序是系统调度的（意即创建多个线程并Start时，其进入线程的时机是系统决定的，可能最后创建的线程最先执行），这里实现的是**对进入队列后的线程进行阻塞、唤醒等操作**。
@@ -720,3 +721,306 @@ public override string ToString()
 
 ## 测试
 
+测试代码：
+
+```c#
+using System;
+using System.Threading;
+
+namespace ReadWriteLock
+{
+    class MainClass
+    {
+      	public static void Add(ReadWriteLock readWriteLock)
+        {
+            for (int i = 0; i < 100000000; i++)
+            {
+                readWriteLock.WriteLock();
+                N++;
+                readWriteLock.WriteUnlock();
+            }
+        }
+        public static void TestReentrantWriter(ReadWriteLock readWriteLock)
+        {
+            readWriteLock.WriteLock();
+            readWriteLock.WriteLock();
+            readWriteLock.WriteLock();
+            readWriteLock.WriteLock();
+            Thread.Sleep(1000);
+            readWriteLock.WriteUnlock();
+            readWriteLock.WriteUnlock();
+            readWriteLock.WriteUnlock();
+            readWriteLock.WriteUnlock();
+        }
+        public static void TestWriter(ReadWriteLock readWriteLock)
+        {
+            readWriteLock.WriteLock();
+            Thread.Sleep(500);
+            //Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
+            readWriteLock.WriteUnlock();
+        }
+        public static void TestReader(ReadWriteLock readWriteLock)
+        {
+            readWriteLock.ReadLock();
+            Thread.Sleep(500);
+            //Console.WriteLine(Thread.CurrentThread.Name + "执行完毕");
+            readWriteLock.ReadUnlock();
+        }
+        public static void Main(string[] args)
+        {
+            ReadWriteLock readWriteLock = new ReadWriteLock();
+            for (int i = 1; i <= 10; i++)
+                CreateThread(false, i, readWriteLock);
+            for (int i = 1; i <= 20; i++)
+                CreateThread(true, i, readWriteLock);
+            for (int i = 0; i < 100; i++)
+            {
+                Thread.Sleep(500);
+                readWriteLock.PrintQueue();
+            }
+            Console.ReadKey();
+        }
+        static void CreateThread(bool share, int i, ReadWriteLock readWriteLock)
+        {
+            Thread thread;
+            if (share) 
+            {
+                thread = new Thread(() => TestReader(readWriteLock));
+                thread.Name = "Reader-" + i;            
+            }
+            else
+            {
+                thread = i == 5 ? new Thread(() => TestReentrantWriter(readWriteLock)) : new Thread(() => TestWriter(readWriteLock));
+                thread.Name = "Writer-" + i;
+            }
+            thread.Start();
+        }
+    }
+}
+```
+
+首先是两个线程同时增加1亿次的时间：约30s，比Monitor大概慢了5倍。
+
+其次，测试创建了10个写线程、20个读线程，假定每个线程持续时间为500毫秒，每隔500毫秒输出等待队列的情况如下：
+
+```
+Head(持有线程：Writer-2，重入量：1)
+->【线程名称：Writer-2，类型：写，状态：RUNNING】
+->【线程名称：Writer-8，类型：写，状态：WAITING】
+->【线程名称：Reader-10，类型：读，状态：WAITING】->【线程名称：Reader-6，类型：读，状态：WAITING】->【线程名称：Reader-4，类型：读，状态：WAITING】
+->【线程名称：Writer-6，类型：写，状态：WAITING】
+->【线程名称：Writer-7，类型：写，状态：WAITING】
+->【线程名称：Writer-3，类型：写，状态：WAITING】
+->【线程名称：Writer-5，类型：写，状态：WAITING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-8，重入量：1)
+->【线程名称：Writer-8，类型：写，状态：RUNNING】
+->【线程名称：Reader-10，类型：读，状态：WAITING】->【线程名称：Reader-6，类型：读，状态：WAITING】->【线程名称：Reader-4，类型：读，状态：WAITING】
+->【线程名称：Writer-6，类型：写，状态：WAITING】
+->【线程名称：Writer-7，类型：写，状态：WAITING】
+->【线程名称：Writer-3，类型：写，状态：WAITING】
+->【线程名称：Writer-5，类型：写，状态：WAITING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-10，重入量：3)
+->【线程名称：Reader-10，类型：读，状态：RUNNING】->【线程名称：Reader-6，类型：读，状态：RUNNING】->【线程名称：Reader-4，类型：读，状态：RUNNING】
+->【线程名称：Writer-6，类型：写，状态：WAITING】
+->【线程名称：Writer-7，类型：写，状态：WAITING】
+->【线程名称：Writer-3，类型：写，状态：WAITING】
+->【线程名称：Writer-5，类型：写，状态：WAITING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-6，重入量：1)
+->【线程名称：Writer-6，类型：写，状态：RUNNING】
+->【线程名称：Writer-7，类型：写，状态：WAITING】
+->【线程名称：Writer-3，类型：写，状态：WAITING】
+->【线程名称：Writer-5，类型：写，状态：WAITING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-7，重入量：1)
+->【线程名称：Writer-7，类型：写，状态：RUNNING】
+->【线程名称：Writer-3，类型：写，状态：WAITING】
+->【线程名称：Writer-5，类型：写，状态：WAITING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-3，重入量：1)
+->【线程名称：Writer-3，类型：写，状态：RUNNING】
+->【线程名称：Writer-5，类型：写，状态：WAITING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-5，重入量：4)
+->【线程名称：Writer-5，类型：写，状态：RUNNING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-5，重入量：4)
+->【线程名称：Writer-5，类型：写，状态：RUNNING】
+->【线程名称：Reader-3，类型：读，状态：WAITING】->【线程名称：Reader-5，类型：读，状态：WAITING】->【线程名称：Reader-7，类型：读，状态：WAITING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-3，重入量：3)
+->【线程名称：Reader-3，类型：读，状态：RUNNING】->【线程名称：Reader-5，类型：读，状态：RUNNING】->【线程名称：Reader-7，类型：读，状态：RUNNING】
+->【线程名称：Reader-8，类型：读，状态：WAITING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-8，重入量：1)
+->【线程名称：Reader-8，类型：读，状态：RUNNING】
+->【线程名称：Writer-9，类型：写，状态：WAITING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-8，重入量：1)
+->【线程名称：Writer-9，类型：写，状态：SIGNAL】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-9，重入量：1)
+->【线程名称：Writer-9，类型：写，状态：RUNNING】
+->【线程名称：Reader-9，类型：读，状态：WAITING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-9，重入量：1)
+->【线程名称：Reader-9，类型：读，状态：RUNNING】
+->【线程名称：Writer-4，类型：写，状态：WAITING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-4，重入量：1)
+->【线程名称：Writer-4，类型：写，状态：RUNNING】
+->【线程名称：Writer-1，类型：写，状态：WAITING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Writer-1，重入量：1)
+->【线程名称：Writer-1，类型：写，状态：RUNNING】
+->【线程名称：Reader-11，类型：读，状态：WAITING】->【线程名称：Reader-2，类型：读，状态：WAITING】->【线程名称：Reader-1，类型：读，状态：WAITING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-11，重入量：3)
+->【线程名称：Reader-11，类型：读，状态：RUNNING】->【线程名称：Reader-2，类型：读，状态：RUNNING】->【线程名称：Reader-1，类型：读，状态：RUNNING】
+->【线程名称：Reader-12，类型：读，状态：WAITING】->【线程名称：Reader-13，类型：读，状态：WAITING】->【线程名称：Reader-14，类型：读，状态：WAITING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-12，重入量：3)
+->【线程名称：Reader-12，类型：读，状态：RUNNING】->【线程名称：Reader-13，类型：读，状态：RUNNING】->【线程名称：Reader-14，类型：读，状态：RUNNING】
+->【线程名称：Reader-15，类型：读，状态：WAITING】->【线程名称：Reader-16，类型：读，状态：WAITING】->【线程名称：Reader-17，类型：读，状态：WAITING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-15，重入量：3)
+->【线程名称：Reader-15，类型：读，状态：RUNNING】->【线程名称：Reader-16，类型：读，状态：RUNNING】->【线程名称：Reader-17，类型：读，状态：RUNNING】
+->【线程名称：Reader-18，类型：读，状态：WAITING】->【线程名称：Reader-19，类型：读，状态：WAITING】->【线程名称：Reader-20，类型：读，状态：WAITING】
+
+Head(持有线程：Reader-18，重入量：3)
+->【线程名称：Reader-18，类型：读，状态：RUNNING】->【线程名称：Reader-19，类型：读，状态：RUNNING】->【线程名称：Reader-20，类型：读，状态：RUNNING】
+
+Head(持有线程：未持有线程，重入量：0)
+
+Head(持有线程：未持有线程，重入量：0)
+```
+
+如上述结果，每一行代表一个节点（读节点有不超过读链阈值的节点个数），Head开头说明打印了一次线程队列中的执行和等待情况。结果说明该读写锁可支持：
+
+1. 多个线程的并发读访问
+2. 多个线程的写访问
+3. 避免了写饥饿

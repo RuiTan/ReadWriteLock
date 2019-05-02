@@ -1,9 +1,9 @@
 ﻿<Properties StartupConfiguration="{4A60FD9E-714A-4254-B1CB-38A403A7801B}|Default">
   <MonoDevelop.Ide.ItemProperties.ReadWriteLock PreferredExecutionTarget="MonoDevelop.Default" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="ReadWriteLock/ReadWriteLock.cs">
+  <MonoDevelop.Ide.Workbench ActiveDocument="ReadWriteLock/Program.cs">
     <Files>
-      <File FileName="ReadWriteLock/Program.cs" Line="73" Column="38" />
-      <File FileName="ReadWriteLock/ReadWriteLock.cs" Line="326" Column="14" />
+      <File FileName="ReadWriteLock/Program.cs" Line="79" Column="42" />
+      <File FileName="ReadWriteLock/ReadWriteLock.cs" Line="322" Column="35" />
       <File FileName="ReadWriteLock/Node.cs" Line="13" Column="40" />
     </Files>
     <Pads>
@@ -11,7 +11,7 @@
         <State name="__root__">
           <Node name="ReadWriteLock" expanded="True">
             <Node name="ReadWriteLock" expanded="True">
-              <Node name="ReadWriteLock.cs" selected="True" />
+              <Node name="Program.cs" selected="True" />
             </Node>
           </Node>
         </State>
